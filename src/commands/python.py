@@ -47,8 +47,14 @@ async def eval_python(event: hikari.MessageCreateEvent):
             user=sandbox_uid,
             group=sandbox_gid
         ).decode("utf8")
+    except subprocess.CalledProcessError as e:
+        response = f"**Process returned non-zero exit status {e.returncode}**"
+        if e.output != None and len(e.output.strip()) != 0:
+            response += f"\n```\n{e.output.decode('utf8').strip()}\n```"
+        await event.message.respond(response)
+        return
     except Exception as e:
-        await event.message.respond(f"**Error while running code**:\n```\n{e}\n```")
+        await event.message.respond(f"**Error while running code**: `{e}`")
         return
     output = output.strip()
 
