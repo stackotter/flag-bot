@@ -12,7 +12,7 @@ from io import StringIO
 from ..message import extract_code_block
 from ..env import sandbox_user
 
-plugin = lightbulb.Plugin("python")
+plugin = lightbulb.Plugin("code-runner")
 
 @plugin.listener(hikari.MessageCreateEvent)
 async def eval_python(event: hikari.MessageCreateEvent):
@@ -25,13 +25,16 @@ async def eval_python(event: hikari.MessageCreateEvent):
     if code_block.lang == None:
         await event.message.respond("No language specified, assuming python", reply=True)
         code_block.lang = "python"
-    elif not code_block.lang in ["py", "python"]:
+    elif not code_block.lang in ["py", "python", "sh"]:
         await event.message.respond("Only python is supported", reply=True)
         return
 
+    extension = "sh" if code_block.lang == "sh" else "py"
+    interpreter = "/bin/sh" if code_block.lang == "sh" else sys.executable
+
     # Create execution directory containing script
     temp_dir = tempfile.mkdtemp()
-    temp_file = f"{temp_dir}/script.py"
+    temp_file = f"{temp_dir}/script.{extension}"
     with open(temp_file, "w") as f:
         f.write(code_block.code)
 
@@ -44,7 +47,7 @@ async def eval_python(event: hikari.MessageCreateEvent):
 
     try:
         output = subprocess.check_output(
-            [sys.executable, temp_file],
+            [interpreter, temp_file],
             stderr=subprocess.STDOUT,
             timeout=2,
             user=sandbox_uid,
