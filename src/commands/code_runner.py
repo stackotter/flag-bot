@@ -49,6 +49,7 @@ async def eval_python(event: hikari.MessageCreateEvent):
         output = subprocess.check_output(
             [interpreter, temp_file],
             stderr=subprocess.STDOUT,
+            cwd=temp_dir,
             timeout=2,
             user=sandbox_uid,
             group=sandbox_gid
