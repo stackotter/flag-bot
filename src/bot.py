@@ -2,13 +2,9 @@ import lightbulb
 import hikari
 import os
 
-from dotenv import load_dotenv
-
-from .util import required_env_var
+from .env import bot_token
 
 def main():
-    load_dotenv()
-    bot_token = required_env_var("FLAG_BOT_TOKEN")
     bot = lightbulb.BotApp(token=bot_token)
 
     dir_path = os.path.dirname(os.path.realpath(__file__))

@@ -1,12 +1,16 @@
-import func_timeout
+import subprocess
 import lightbulb
+import tempfile
+import shutil
 import hikari
+import pwd
+import sys
 
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 
-from ..crypto import b64encode_str, b64decode_to_str, caesar_shift
-from ..util import command, option
+from ..message import extract_code_block
+from ..env import sandbox_user
 
 plugin = lightbulb.Plugin("python")
 
@@ -16,45 +20,39 @@ async def eval_python(event: hikari.MessageCreateEvent):
     if mentioned_member_ids != [plugin.bot.get_me().id]:
         return
 
-    lang = None
-    code_lines = []
-    in_code_block = False
-    lines = event.message.content.split("\n")
-    for line in lines:
-        if in_code_block:
-            if line.startswith("```"):
-                break
-            code_lines.append(line)
-        elif line.startswith("```"):
-            lang = line[3:]
-            in_code_block = True
+    code_block = extract_code_block(event.message.content)
 
-    if not in_code_block:
-        return
-
-    if not lang in ["py", "python"]:
+    if not code_block.lang in ["py", "python"]:
         await event.message.respond("Only python is supported")
         return
 
-    code = "\n".join(code_lines)
+    # Create execution directory containing script
+    temp_dir = tempfile.mkdtemp()
+    temp_file = f"{temp_dir}/script.py"
+    with open(temp_file, "w") as f:
+        f.write(code_block.code)
 
-    stream = StringIO()
-    with redirect_stdout(stream):
-        with redirect_stderr(stream):
-            def run():
-                return exec(code)
+    # Allow sandbox user access to execution directory and script
+    entry = pwd.getpwnam(sandbox_user)
+    sandbox_uid = entry.pw_uid
+    sandbox_gid = entry.pw_gid
+    shutil.chown(temp_dir, sandbox_uid, sandbox_gid)
+    shutil.chown(temp_file, sandbox_uid, sandbox_gid)
 
-            timeout = 2
-            try:
-                func_timeout.func_timeout(timeout, run)
-            except Exception as e:
-                await event.message.respond(f"**Error while running code**:\n```\n{e}\n```")
-                return
-            except func_timeout.FunctionTimedOut:
-                await event.message.respond(f"Execution time exceeded timeout ({timeout} seconds)")
-                return
+    try:
+        output = subprocess.check_output(
+            [sys.executable, temp_file],
+            timeout=2,
+            user=sandbox_uid,
+            group=sandbox_gid
+        ).decode("utf8")
+    except Exception as e:
+        await event.message.respond(f"**Error while running code**:\n```\n{e}\n```")
+        return
+    output = output.strip()
 
-    output = stream.getvalue().strip()
+    shutil.rmtree(temp_dir)
+
     if len(output) == 0:
         await event.message.respond("No output")
     else:

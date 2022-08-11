@@ -52,3 +52,6 @@ def required_env_var(name: str) -> str:
         print(f"Missing environment variable: '{name}'")
         exit(1)
     return value
+
+def optional_env_var(name: str, default=None):
+    return os.environ.get(name, default)
