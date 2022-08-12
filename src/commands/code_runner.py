@@ -1,5 +1,6 @@
 import subprocess
 import lightbulb
+import resource
 import tempfile
 import shutil
 import hikari
@@ -63,7 +64,18 @@ async def eval_python(event: hikari.MessageCreateEvent):
     except Exception as e:
         await event.message.respond(f"**Error while running code**: `{e}`", reply=True)
         return
+
     output = output.strip()
+
+    # Kill all subprocesses that the code might have created, unless the sandbox user is the current
+    # user
+    try:
+        entry = pwd.getpwnam(subprocess.check_output(["whoami"]).decode("utf8").strip())
+        if sandbox_uid != entry.pw_uid:
+            subprocess.run(["pkill", "-u", str(sandbox_uid)])
+    except Exception as e:
+        await event.message.respond(f"**Failed to kill all processes created by snippet**: `{e}`", reply=True)
+        return
 
     shutil.rmtree(temp_dir)
 
